@@ -30,7 +30,7 @@ RACEROOM_DIRECTORY = 'D:/SteamLibrary/steamapps/common/raceroom racing experienc
 GAME_DATA = get_game_data()
 TRACKS = get_all_tracks(GAME_DATA)
 HEADER = ['N°', 'Nom du circuit', 'World record', 'Mon temps', 'Classement', 'Total']
-CAR_IDS = ['class-1703', 8257, 5818, 10914, 8487]
+CAR_IDS = [8487]
 COUNT = 1500
 UPDATE_INTERVAL = timedelta(minutes=15)
 LAST_UPDATE = datetime.now()
@@ -120,9 +120,6 @@ def save_all_cars():
 
 def main():
     save_all_cars()
-    while True:
-        if LAST_UPDATE + UPDATE_INTERVAL < datetime.now():
-            save_all_cars()
 
 
 if __name__ == '__main__':
