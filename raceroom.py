@@ -6,7 +6,6 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 import json
 import requests
-from datetime import timedelta, datetime
 
 
 def get_game_data():
@@ -16,7 +15,7 @@ def get_game_data():
 
 def get_all_tracks(json_file):
     results = {}
-    track_list = json_file["tracks"]
+    track_list = json_file['tracks']
     for i in track_list:
         track_name = track_list[i]['Name']
         for j in track_list[i]['layouts']:
@@ -30,10 +29,10 @@ RACEROOM_DIRECTORY = 'D:/SteamLibrary/steamapps/common/raceroom racing experienc
 GAME_DATA = get_game_data()
 TRACKS = get_all_tracks(GAME_DATA)
 HEADER = ['N°', 'Nom du circuit', 'World record', 'Mon temps', 'Classement', 'Total']
-CAR_IDS = [8487]
+CAR_IDS = ['class-1703', 8257, 8487, 11342]
+FINISHED_CLASSES = [8487]
 COUNT = 1500
-UPDATE_INTERVAL = timedelta(minutes=15)
-LAST_UPDATE = datetime.now()
+MAX_ERRORS = 12
 
 
 def get_credentials():
@@ -60,10 +59,17 @@ def get_lap_time_sec(lap_time):
 
 def get_car_name(json_file, car_id):
     if type(car_id) == str:
-        car_id = car_id.split("class-")[1]
+        car_id = car_id.split('class-')[1]
         return json_file['classes'][car_id]['Name']
     else:
         return json_file['cars'][str(car_id)]['Name']
+
+
+def get_track_name(json_file, track_id):
+    layout = json_file['layouts'][str(track_id)]
+    track = json_file['tracks'][str(layout['Track'])]['Name']
+    layout_name = layout['Name']
+    return f'{track} - {layout_name}'
 
 
 def get_json(track_id, car_id):
@@ -75,23 +81,38 @@ def get_json(track_id, car_id):
 
 
 def get_data(track_id, car_id):
-    wr, lap_time, rank, i = None, None, None, 0
-    file = get_json(track_id, car_id)
-    context = file['context']['c']['results']
-    if len(context) == 0:
-        return []
-    wr = context[0]['laptime']
-    wr = wr.split('s')[0].split('m ')
-    wr = get_lap_time_sec(wr)
-    for c in context:
-        i += 1
-        if c['driver']['name'] == 'Mathieu Blanchard':
-            lap_time = c['laptime'].split('s')[0].split('m ')
-            lap_time = get_lap_time_sec(lap_time)
-            rank = i
-    if not wr or not lap_time or not rank or not i:
-        return []
-    return [wr, lap_time, rank, i]
+    errors = 0
+    while True:
+        if errors > MAX_ERRORS:
+            car_name = get_car_name(GAME_DATA, car_id)
+            track_name = get_track_name(GAME_DATA, track_id)
+            raise Exception(f'Too many errors | car = {car_name} | track = {track_name}')
+        wr, lap_time, rank, i = None, None, None, 0
+        file = get_json(track_id, car_id)
+        context = file['context']['c']['results']
+        if len(context) == 0:
+            if track_id == 10274 or car_id not in FINISHED_CLASSES:
+                return []
+            else:
+                errors += 1
+                continue
+        wr = context[0]['laptime']
+        wr = wr.split('s')[0].split('m ')
+        wr = get_lap_time_sec(wr)
+        for c in context:
+            i += 1
+            if c['driver']['name'] == 'Mathieu Blanchard':
+                lap_time = c['laptime'].split('s')[0].split('m ')
+                lap_time = get_lap_time_sec(lap_time)
+                rank = i
+        if not wr or not lap_time or not rank or not i:
+            if car_id in FINISHED_CLASSES:
+                errors += 1
+                continue
+            else:
+                return []
+        else:
+            return [wr, lap_time, rank, i]
 
 
 def save_data(car_id):
@@ -109,11 +130,10 @@ def save_data(car_id):
                                    valueInputOption='USER_ENTERED', body={'values': [data]}).execute()
             print("Car: " + car_name + " | Track: " + t[0] + " saved successfully")
             n += 1
-            sleep(1)
+            sleep(0.5)
 
 
 def save_all_cars():
-    globals()['LAST_UPDATE'] = datetime.now()
     for car in CAR_IDS:
         save_data(car)
 
