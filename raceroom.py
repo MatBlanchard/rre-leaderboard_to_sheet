@@ -29,8 +29,8 @@ RACEROOM_DIRECTORY = 'D:/SteamLibrary/steamapps/common/raceroom racing experienc
 GAME_DATA = get_game_data()
 TRACKS = get_all_tracks(GAME_DATA)
 HEADER = ['N°', 'Nom du circuit', 'World record', 'Mon temps', 'Classement', 'Total']
-CAR_IDS = ['class-1703', 8257, 8487, 11342]
-FINISHED_CLASSES = [8487]
+CAR_IDS = [11342]
+FINISHED_CLASSES = []
 COUNT = 1500
 MAX_ERRORS = 12
 
@@ -105,7 +105,7 @@ def get_data(track_id, car_id):
                 lap_time = c['laptime'].split('s')[0].split('m ')
                 lap_time = get_lap_time_sec(lap_time)
                 rank = i
-        if not wr or not lap_time or not rank or not i:
+        if not rank:
             if car_id in FINISHED_CLASSES:
                 errors += 1
                 continue
