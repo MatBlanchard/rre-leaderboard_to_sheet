@@ -29,10 +29,11 @@ RACEROOM_DIRECTORY = 'D:/SteamLibrary/steamapps/common/raceroom racing experienc
 GAME_DATA = get_game_data()
 TRACKS = get_all_tracks(GAME_DATA)
 HEADER = ['N°', 'Nom du circuit', 'World record', 'Mon temps', 'Classement', 'Total']
-CAR_IDS = [11342]
-FINISHED_CLASSES = []
+CAR_IDS = ['class-1703', 8257, 11536, 5818, 10914, 5051, 11342]
+FINISHED_CLASSES = [10914, 5051, 11342]
 COUNT = 1500
-MAX_ERRORS = 12
+MAX_ERRORS = 30
+SLEEP_TIME = 0.2
 
 
 def get_credentials():
@@ -73,11 +74,21 @@ def get_track_name(json_file, track_id):
 
 
 def get_json(track_id, car_id):
-    url = 'https://game.raceroom.com/leaderboard/listing/0?start=0&count=' + \
-          str(COUNT) + '&track=' + str(track_id) + '&car_class=' + str(car_id)
-    page = requests.get(url, headers={'X-Requested-With': 'XMLHttpRequest'})
-    if page.ok:
-        return json.loads(page.text)
+    errors = 0
+    while True:
+        url = 'https://game.raceroom.com/leaderboard/listing/0?start=0&count=' + \
+              str(COUNT) + '&track=' + str(track_id) + '&car_class=' + str(car_id)
+        page = requests.get(url, headers={'X-Requested-With': 'XMLHttpRequest'})
+        if page.ok:
+            return json.loads(page.text)
+        else:
+            if errors > MAX_ERRORS:
+                car_name = get_car_name(GAME_DATA, car_id)
+                track_name = get_track_name(GAME_DATA, track_id)
+                raise Exception(f'Too many errors while getting the file | car = {car_name} | track = {track_name}')
+            else:
+                sleep(SLEEP_TIME)
+                errors += 1
 
 
 def get_data(track_id, car_id):
@@ -86,7 +97,7 @@ def get_data(track_id, car_id):
         if errors > MAX_ERRORS:
             car_name = get_car_name(GAME_DATA, car_id)
             track_name = get_track_name(GAME_DATA, track_id)
-            raise Exception(f'Too many errors | car = {car_name} | track = {track_name}')
+            raise Exception(f'Too many errors while getting the data | car = {car_name} | track = {track_name}')
         wr, lap_time, rank, i = None, None, None, 0
         file = get_json(track_id, car_id)
         context = file['context']['c']['results']
@@ -94,6 +105,7 @@ def get_data(track_id, car_id):
             if track_id == 10274 or car_id not in FINISHED_CLASSES:
                 return []
             else:
+                sleep(SLEEP_TIME)
                 errors += 1
                 continue
         wr = context[0]['laptime']
@@ -107,6 +119,7 @@ def get_data(track_id, car_id):
                 rank = i
         if not rank:
             if car_id in FINISHED_CLASSES:
+                sleep(SLEEP_TIME)
                 errors += 1
                 continue
             else:
@@ -130,7 +143,7 @@ def save_data(car_id):
                                    valueInputOption='USER_ENTERED', body={'values': [data]}).execute()
             print("Car: " + car_name + " | Track: " + t[0] + " saved successfully")
             n += 1
-            sleep(0.5)
+            sleep(1)
 
 
 def save_all_cars():
