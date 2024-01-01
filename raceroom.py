@@ -29,11 +29,13 @@ RACEROOM_DIRECTORY = 'D:/SteamLibrary/steamapps/common/raceroom racing experienc
 GAME_DATA = get_game_data()
 TRACKS = get_all_tracks(GAME_DATA)
 HEADER = ['N°', 'Nom du circuit', 'World record', 'Mon temps', 'Classement', 'Total']
-CAR_IDS = ['class-1703', 8257, 11536, 5818, 10914, 5051, 11342]
-FINISHED_CLASSES = [10914, 5051, 11342]
+CAR_IDS = ['class-1703']
+FINISHED_CLASSES = []
 COUNT = 1500
-MAX_ERRORS = 30
-SLEEP_TIME = 0.2
+MAX_ERRORS = 100
+SLEEP_TIME = MAX_ERRORS / 100
+DRIVER_NAMES = ['Mathieu Blanchard', 'Florian Gauthier']
+
 
 
 def get_credentials():
@@ -83,27 +85,32 @@ def get_json(track_id, car_id):
             return json.loads(page.text)
         else:
             if errors > MAX_ERRORS:
-                car_name = get_car_name(GAME_DATA, car_id)
-                track_name = get_track_name(GAME_DATA, track_id)
-                raise Exception(f'Too many errors while getting the file | car = {car_name} | track = {track_name}')
+                display_error('file', car_id, track_id)
             else:
                 sleep(SLEEP_TIME)
                 errors += 1
+
+
+def display_error(error, car_id, track_id):
+    car_name = get_car_name(GAME_DATA, car_id)
+    track_name = get_track_name(GAME_DATA, track_id)
+    raise Exception(f'Too many errors while getting the {error} | car = {car_name} | track = {track_name}')
 
 
 def get_data(track_id, car_id):
     errors = 0
     while True:
         if errors > MAX_ERRORS:
-            car_name = get_car_name(GAME_DATA, car_id)
-            track_name = get_track_name(GAME_DATA, track_id)
-            raise Exception(f'Too many errors while getting the data | car = {car_name} | track = {track_name}')
-        wr, lap_time, rank, i = None, None, None, 0
+            display_error('data', car_id, track_id)
+        wr, tot = None, 0
+        data = []
+        for i in range(len(DRIVER_NAMES)):
+            data.append([0, 0])
         file = get_json(track_id, car_id)
         context = file['context']['c']['results']
         if len(context) == 0:
             if track_id == 10274 or car_id not in FINISHED_CLASSES:
-                return []
+                return 0, 0, data
             else:
                 sleep(SLEEP_TIME)
                 errors += 1
@@ -112,20 +119,19 @@ def get_data(track_id, car_id):
         wr = wr.split('s')[0].split('m ')
         wr = get_lap_time_sec(wr)
         for c in context:
-            i += 1
-            if c['driver']['name'] == 'Mathieu Blanchard':
-                lap_time = c['laptime'].split('s')[0].split('m ')
-                lap_time = get_lap_time_sec(lap_time)
-                rank = i
-        if not rank:
-            if car_id in FINISHED_CLASSES:
-                sleep(SLEEP_TIME)
-                errors += 1
-                continue
-            else:
-                return []
+            tot += 1
+            for i in range(len(DRIVER_NAMES)):
+                if c['driver']['name'] == DRIVER_NAMES[i]:
+                    lap_time = c['laptime'].split('s')[0].split('m ')
+                    lap_time = get_lap_time_sec(lap_time)
+                    rank = tot
+                    data[i] = [lap_time, rank]
+        if data[0] == [0, 0] and car_id in FINISHED_CLASSES:
+            sleep(SLEEP_TIME)
+            errors += 1
+            continue
         else:
-            return [wr, lap_time, rank, i]
+            return wr, tot, data
 
 
 def save_data(car_id):
@@ -133,17 +139,39 @@ def save_data(car_id):
     credentials = get_credentials()
     service = build('sheets', 'v4', credentials=credentials)
     sheets = service.spreadsheets()
-    sheets.values().update(spreadsheetId=SPREADSHEET_ID, range=f'{car_name}!A1',
-                           valueInputOption='USER_ENTERED', body={'values': [HEADER]}).execute()
-    n = 1
+    for i in range(len(DRIVER_NAMES)):
+        letter = chr(12 * i + 65)
+        sheets.values().update(spreadsheetId=SPREADSHEET_ID, range=f'{car_name}!{letter}2',
+                               valueInputOption='USER_ENTERED', body={'values': [HEADER]}).execute()
+    n = []
+    recommended_track = []
+    for i in range(len(DRIVER_NAMES)):
+        n.append(1)
+        recommended_track.append(['', 0, 0])
     for t in TRACKS:
-        data = [n] + [t[0]] + get_data(t[1], car_id)
-        if len(data) == len(HEADER):
-            sheets.values().update(spreadsheetId=SPREADSHEET_ID, range=f'{car_name}!A{n + 1}',
-                                   valueInputOption='USER_ENTERED', body={'values': [data]}).execute()
-            print("Car: " + car_name + " | Track: " + t[0] + " saved successfully")
-            n += 1
-            sleep(1)
+        sleep(SLEEP_TIME)
+        wr, tot, data = get_data(t[1], car_id)
+        if t[1] != 10274:
+            print('Car: ' + car_name + ' | Track: ' + t[0])
+            for i in range(len(DRIVER_NAMES)):
+                values = [n[i]] + [t[0]] + [wr] + data[i] + [tot]
+                letter = chr(12 * i + 65)
+                if data[i] != [0, 0]:
+                    sheets.values().update(spreadsheetId=SPREADSHEET_ID, range=f'{car_name}!{letter}{n[i] + 2}',
+                                           valueInputOption='USER_ENTERED', body={'values': [values]}).execute()
+                    print('Driver: ' + DRIVER_NAMES[i] + ' saved successfully')
+                    n[i] += 1
+                else:
+                    if recommended_track[i][1] == 0:
+                        recommended_track[i] = t[0] + [wr, tot]
+                    elif tot > 5 and recommended_track[i][1] > wr:
+                        recommended_track[i] = t[0] + [wr, tot]
+    for i in range(len(DRIVER_NAMES)):
+        if recommended_track[i][1] != 0:
+            print(f'Recommended track for {DRIVER_NAMES[i]} : \n'
+                  f'Name : {recommended_track[i][0]}\n'
+                  f'World Record : {recommended_track[i][1]}\n'
+                  f'Total players : {recommended_track[i][2]}\n')
 
 
 def save_all_cars():
