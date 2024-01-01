@@ -162,10 +162,13 @@ def save_data(car_id):
                     print('Driver: ' + DRIVER_NAMES[i] + ' saved successfully')
                     n[i] += 1
                 else:
-                    if recommended_track[i][1] == 0:
-                        recommended_track[i] = t[0] + [wr, tot]
-                    elif tot > 5 and recommended_track[i][1] > wr:
-                        recommended_track[i] = t[0] + [wr, tot]
+                    if wr != 0:
+                        float_wr = float(wr.replace(',', '.'))
+                    else:
+                        float_wr = 0
+                    if tot >= 5 and (recommended_track[i][1] == 0 or recommended_track[i][1] > float_wr):
+                        recommended_track[i] = [t[0]] + [float_wr, tot]
+                        print(f'{recommended_track[i]} {DRIVER_NAMES[i]}')
     for i in range(len(DRIVER_NAMES)):
         if recommended_track[i][1] != 0:
             print(f'Recommended track for {DRIVER_NAMES[i]} : \n'
