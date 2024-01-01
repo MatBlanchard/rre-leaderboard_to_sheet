@@ -174,7 +174,6 @@ def save_data(car_id):
                   f'Total players : {recommended_track[i][2]}\n')
 
 
-
 def save_all_cars():
     for car in CAR_IDS:
         save_data(car)
