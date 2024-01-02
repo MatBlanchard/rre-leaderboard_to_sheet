@@ -168,7 +168,6 @@ def save_data(car_id):
                         float_wr = 0
                     if tot >= 5 and (recommended_track[i][1] == 0 or recommended_track[i][1] > float_wr):
                         recommended_track[i] = [t[0]] + [float_wr, tot]
-                        print(f'{recommended_track[i]} {DRIVER_NAMES[i]}')
     for i in range(len(DRIVER_NAMES)):
         if recommended_track[i][1] != 0:
             print(f'Recommended track for {DRIVER_NAMES[i]} : \n'
